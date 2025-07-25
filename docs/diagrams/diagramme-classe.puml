@@ -1,0 +1,427 @@
+@startuml Diagramme de classes
+
+title Diagramme de classes — LOG430 Magasin (Système Actuel)
+
+' === Backend Domain Models ===
+package "Domain Models" {
+  class Store {
+    +id: Int
+    +name: String
+    +address?: String
+    --
+    +getInventory(): Stock[]
+    +getSales(): Sale[]
+    +getRefunds(): Refund[]
+  }
+
+  class Product {
+    +id: Int
+    +name: String
+    +price: Float
+    +description?: String
+    --
+    +updatePrice(newPrice: Float)
+    +updateDescription(desc: String)
+    +getTotalStock(): Int
+  }
+
+  class Stock {
+    +id: Int
+    +quantity: Int
+    +storeId: Int
+    +productId: Int
+    --
+    +checkAvailability(qty: Int): Boolean
+    +adjustQuantity(qty: Int)
+    +reserve(qty: Int): Boolean
+  }
+
+  class User {
+    +id: Int
+    +name: String
+    +role: String
+    +password: String
+    --
+    +authenticate(): Boolean
+    +isAdmin(): Boolean
+    +isClient(): Boolean
+  }
+
+  class Sale {
+    +id: Int
+    +date: DateTime
+    +total: Float
+    +status: String
+    +storeId: Int
+    +userId: Int
+    --
+    +calculateTotal(): Float
+    +markAsRefunded()
+    +updateStatus(status: String)
+  }
+
+  class SaleLine {
+    +id: Int
+    +quantity: Int
+    +unitPrice: Float
+    +saleId: Int
+    +productId: Int
+    --
+    +calculateSubtotal(): Float
+  }
+
+  class Refund {
+    +id: Int
+    +date: DateTime
+    +total: Float
+    +reason?: String
+    +saleId: Int
+    +storeId: Int
+    +userId: Int
+    --
+    +calculateRefundTotal(): Float
+  }
+
+  class RefundLine {
+    +id: Int
+    +quantity: Int
+    +unitPrice: Float
+    +refundId: Int
+    +productId: Int
+    --
+    +calculateRefundAmount(): Float
+  }
+}
+
+' === Backend Services Layer ===
+package "Application Layer" {
+  class ProductUseCases {
+    +createProduct(dto: CreateProductDTO): ProductResponseDTO
+    +updateProduct(id: Int, dto: UpdateProductDTO): ProductResponseDTO
+    +getProduct(id: Int): ProductResponseDTO
+    +getAllProducts(): ProductResponseDTO[]
+    +deleteProduct(id: Int): void
+    +searchProducts(name: String): ProductResponseDTO[]
+  }
+
+  class StoreUseCases {
+    +createStore(dto: CreateStoreDTO): StoreResponseDTO
+    +updateStore(id: Int, dto: UpdateStoreDTO): StoreResponseDTO
+    +getStore(id: Int): StoreResponseDTO
+    +getAllStores(): StoreResponseDTO[]
+    +deleteStore(id: Int): void
+    +searchStores(name: String): StoreResponseDTO[]
+  }
+
+  class StockUseCases {
+    +createStock(dto: CreateStockDTO): StockResponseDTO
+    +updateStock(id: Int, dto: UpdateStockDTO): StockResponseDTO
+    +getStock(id: Int): StockResponseDTO
+    +getAllStock(): StockResponseDTO[]
+    +getStockByStore(storeId: Int): StockResponseDTO[]
+    +getStockByProduct(productId: Int): StockResponseDTO[]
+    +reserveStock(dto: StockReservationDTO): Boolean
+    +adjustStock(dto: StockAdjustmentDTO): StockResponseDTO
+    +getLowStockItems(threshold: Int): StockResponseDTO[]
+  }
+
+  class SaleUseCases {
+    +createSale(dto: CreateSaleDTO): SaleResponseDTO
+    +getSale(id: Int): SaleResponseDTO
+    +getAllSales(): SaleResponseDTO[]
+    +getSalesByUser(userId: Int): SaleResponseDTO[]
+    +getSalesByStore(storeId: Int): SaleResponseDTO[]
+    +updateSaleStatus(id: Int, status: String): SaleResponseDTO
+    +getSalesSummary(startDate: Date, endDate: Date): SalesSummaryDTO
+  }
+
+  class RefundUseCases {
+    +createRefund(dto: CreateRefundDTO): RefundResponseDTO
+    +getRefund(id: Int): RefundResponseDTO
+    +getAllRefunds(): RefundResponseDTO[]
+    +getRefundsByUser(userId: Int): RefundResponseDTO[]
+    +getRefundsByStore(storeId: Int): RefundResponseDTO[]
+    +getRefundsBySale(saleId: Int): RefundResponseDTO[]
+    +getRefundsSummary(startDate: Date, endDate: Date): RefundsSummaryDTO
+  }
+
+  class UserService {
+    +createUser(dto: UserDTO): User
+    +getUserById(id: Int): User
+    +getAllUsers(): User[]
+    +updateUser(id: Int, dto: UserDTO): User
+    +deleteUser(id: Int): void
+    +authenticate(name: String, password: String): User
+  }
+}
+
+' === Backend Controllers ===
+package "Infrastructure - Controllers" {
+  class ProductController {
+    +createProduct(req, res): void
+    +getProduct(req, res): void
+    +getAllProducts(req, res): void
+    +updateProduct(req, res): void
+    +deleteProduct(req, res): void
+    +searchProducts(req, res): void
+  }
+
+  class StoreController {
+    +createStore(req, res): void
+    +getStore(req, res): void
+    +getAllStores(req, res): void
+    +updateStore(req, res): void
+    +deleteStore(req, res): void
+    +searchStores(req, res): void
+  }
+
+  class StockController {
+    +createStock(req, res): void
+    +getStock(req, res): void
+    +getAllStock(req, res): void
+    +updateStock(req, res): void
+    +getStockByStore(req, res): void
+    +getStockByProduct(req, res): void
+    +reserveStock(req, res): void
+    +adjustStock(req, res): void
+    +getLowStockItems(req, res): void
+  }
+
+  class SaleController {
+    +createSale(req, res): void
+    +getSale(req, res): void
+    +getAllSales(req, res): void
+    +getSalesByUser(req, res): void
+    +getSalesByStore(req, res): void
+    +updateSaleStatus(req, res): void
+    +getSalesSummary(req, res): void
+  }
+
+  class RefundController {
+    +createRefund(req, res): void
+    +getRefund(req, res): void
+    +getAllRefunds(req, res): void
+    +getRefundsByUser(req, res): void
+    +getRefundsByStore(req, res): void
+    +getRefundsBySale(req, res): void
+    +getRefundsSummary(req, res): void
+  }
+
+  class UserController {
+    +createUser(req, res): void
+    +getUser(req, res): void
+    +getAllUsers(req, res): void
+    +updateUser(req, res): void
+    +deleteUser(req, res): void
+  }
+
+  class AuthController {
+    +login(req, res): void
+    +register(req, res): void
+    +me(req, res): void
+  }
+}
+
+' === Shared Infrastructure ===
+package "Shared Infrastructure" {
+  class CacheService {
+    +get(key: String): Object
+    +set(key: String, value: Object, ttl: Int): void
+    +delete(key: String): void
+    +invalidatePattern(pattern: String): void
+  }
+
+  class HttpClient {
+    +get(url: String, config: Object): Promise<Object>
+    +post(url: String, data: Object, config: Object): Promise<Object>
+    +put(url: String, data: Object, config: Object): Promise<Object>
+    +delete(url: String, config: Object): Promise<Object>
+  }
+
+  class ServiceRegistry {
+    +register(serviceName: String, serviceUrl: String): void
+    +getServiceUrl(serviceName: String): String
+    +getHttpClient(serviceName: String): HttpClient
+  }
+
+  class MetricsCollector {
+    +recordMetric(operation: String, duration: Number): void
+    +incrementCounter(metric: String): void
+    +setGauge(metric: String, value: Number): void
+  }
+}
+
+' === Frontend Components ===
+package "Frontend - React Components" {
+  class UserContext {
+    +user: User
+    +setUser(user: User): void
+    +login(credentials: Object): Boolean
+    +logout(): void
+    +isAuthenticated(): Boolean
+  }
+
+  class CartContext {
+    +cart: CartItem[]
+    +addToCart(product: Product): void
+    +removeFromCart(productId: Int): void
+    +clearCart(): void
+    +getTotalPrice(): Float
+  }
+
+  class Dashboard {
+    +stats: DashboardStats
+    +loading: Boolean
+    +error: String
+    +fetchDashboardData(): void
+    +generatePDF(): void
+    +displayStatistics(): void
+  }
+
+  class ProductList {
+    +products: Product[]
+    +filteredProducts: Product[]
+    +searchTerm: String
+    +sortBy: String
+    +sortOrder: String
+    +displayProducts(): void
+    +filterProducts(): void
+  }
+
+  class ProductCard {
+    +product: Product
+    +hover: Boolean
+    +onEdit: Function
+    +onDelete: Function
+    +handleAddToCart(): void
+  }
+
+  class Navigation {
+    +user: User
+    +stores: Store[]
+    +anchorEl: Element
+    +totalItems: Int
+    +handleStoreChange(storeId: Int, storeName: String): void
+    +handleLogout(): void
+  }
+
+  class CartPage {
+    +cart: CartItem[]
+    +loading: Boolean
+    +error: String
+    +receiptData: Object
+    +handleCheckout(): void
+    +calculateTotal(): Float
+  }
+}
+
+' === API Services ===
+package "Frontend - API Services" {
+  class ApiClient {
+    +baseURL: String
+    +headers: Object
+    +get(endpoint: String): Promise<Object>
+    +post(endpoint: String, data: Object): Promise<Object>
+    +put(endpoint: String, data: Object): Promise<Object>
+    +delete(endpoint: String): Promise<Object>
+  }
+
+  class ProductService {
+    +getProducts(): Promise<Product[]>
+    +getProduct(id: Int): Promise<Product>
+    +createProduct(data: Object): Promise<Product>
+    +updateProduct(id: Int, data: Object): Promise<Product>
+    +deleteProduct(id: Int): Promise<void>
+    +searchProducts(query: String): Promise<Product[]>
+  }
+
+  class StoreService {
+    +getStores(): Promise<Store[]>
+    +getStore(id: Int): Promise<Store>
+    +createStore(data: Object): Promise<Store>
+    +updateStore(id: Int, data: Object): Promise<Store>
+    +deleteStore(id: Int): Promise<void>
+  }
+
+  class SalesService {
+    +getSales(): Promise<Sale[]>
+    +getSale(id: Int): Promise<Sale>
+    +createSale(data: Object): Promise<Sale>
+    +getSalesByUser(userId: Int): Promise<Sale[]>
+    +getSalesByStore(storeId: Int): Promise<Sale[]>
+    +getSalesSummary(startDate: Date, endDate: Date): Promise<Object>
+  }
+}
+
+' === Middleware ===
+package "Middleware" {
+  class CacheMiddleware {
+    +ttl: Int
+    +cacheService: CacheService
+    +cacheMiddleware(req, res, next): void
+  }
+
+  class AuthMiddleware {
+    +authenticate(req, res, next): void
+    +requireRole(role: String): Function
+  }
+
+  class MetricsMiddleware {
+    +recordMetrics(operation: String): void
+    +metricsMiddleware(serviceName: String): Function
+  }
+}
+
+'--- Relations principales ---
+Store "1" o-- "*" Stock : possède
+Stock "*" o-- "1" Product : concerne
+Store "1" o-- "*" Sale : effectue
+Store "1" o-- "*" Refund : traite
+User "1" o-- "*" Sale : effectue
+User "1" o-- "*" Refund : demande
+Sale "1" o-- "*" SaleLine : compose
+Sale "1" o-- "*" Refund : peut_generer
+SaleLine "*" o-- "1" Product : concerne
+Refund "1" o-- "*" RefundLine : compose
+RefundLine "*" o-- "1" Product : concerne
+
+' Controllers to Use Cases
+ProductController --> ProductUseCases : utilise
+StoreController --> StoreUseCases : utilise
+StockController --> StockUseCases : utilise
+SaleController --> SaleUseCases : utilise
+RefundController --> RefundUseCases : utilise
+UserController --> UserService : utilise
+
+' Use Cases to Domain Models
+ProductUseCases --> Product : manipule
+StoreUseCases --> Store : manipule
+StockUseCases --> Stock : manipule
+SaleUseCases --> Sale : manipule
+RefundUseCases --> Refund : manipule
+UserService --> User : manipule
+
+' Frontend to Backend
+ProductService --> ApiClient : utilise
+StoreService --> ApiClient : utilise
+SalesService --> ApiClient : utilise
+Dashboard --> ProductService : utilise
+Dashboard --> StoreService : utilise
+Dashboard --> SalesService : utilise
+ProductList --> ProductService : utilise
+CartPage --> SalesService : utilise
+
+' Middleware relationships
+CacheMiddleware --> CacheService : utilise
+MetricsMiddleware --> MetricsCollector : utilise
+ProductController --> CacheMiddleware : utilise
+ProductController --> AuthMiddleware : utilise
+ProductController --> MetricsMiddleware : utilise
+
+' Context relationships
+UserContext --> User : gère
+CartContext --> ProductCard : utilisé_par
+Navigation --> UserContext : utilise
+Navigation --> CartContext : utilise
+
+@enduml

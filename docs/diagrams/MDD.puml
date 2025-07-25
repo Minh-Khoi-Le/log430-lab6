@@ -1,0 +1,118 @@
+@startuml MDD Magasin
+title Modèle du domaine — LOG430 Magasin (Système Actuel)
+
+'–––––––––––  Entités  –––––––––––
+class Product {
+    {key} id: Int
+    name: String
+    price: Float
+    description?: String
+}
+
+class Store {
+    {key} id: Int
+    name: String
+    address?: String
+}
+
+class Stock {
+    {key} id: Int
+    storeId: Int
+    productId: Int
+    quantity: Int
+    --
+    Contrainte: UNIQUE(storeId, productId)
+}
+
+class User {
+    {key} id: Int
+    name: String
+    role: String
+    password: String
+    --
+    Contrainte: UNIQUE(name)
+}
+
+class Sale {
+    {key} id: Int
+    storeId: Int
+    userId: Int
+    date: DateTime
+    total: Float
+    status: String
+    --
+    status: 'active', 'refunded', 'partially_refunded'
+}
+
+class SaleLine {
+    {key} id: Int
+    saleId: Int
+    productId: Int
+    quantity: Int
+    unitPrice: Float
+}
+
+class Refund {
+    {key} id: Int
+    saleId: Int
+    storeId: Int
+    userId: Int
+    date: DateTime
+    total: Float
+    reason?: String
+}
+
+class RefundLine {
+    {key} id: Int
+    refundId: Int
+    productId: Int
+    quantity: Int
+    unitPrice: Float
+}
+
+'–––––––––––  Associations & cardinalités  –––––––––––
+Store     "1"     o--  "0..*" Stock        : possède
+Product   "1"     o--  "0..*" Stock        : stocké dans
+
+Store     "1"     o--  "0..*" Sale         : réalise
+User      "1"     o--  "0..*" Sale         : effectue
+Sale      "1"     o--  "1..*" SaleLine     : comporte
+Product   "1"     o--  "0..*" SaleLine     : vendu comme
+
+Store     "1"     o--  "0..*" Refund       : traite
+User      "1"     o--  "0..*" Refund       : demande
+Sale      "1"     o--  "0..*" Refund       : peut générer
+Refund    "1"     o--  "1..*" RefundLine   : comporte
+Product   "1"     o--  "0..*" RefundLine   : remboursé comme
+
+'–––––––––––  Règles métier  –––––––––––
+note right of Stock
+  - Un produit ne peut avoir qu'un seul
+    enregistrement de stock par magasin
+  - La quantité ne peut pas être négative
+  - Contrainte UNIQUE sur (storeId, productId)
+end note
+
+note right of Sale
+  - Le statut peut être 'active', 'refunded'
+    ou 'partially_refunded'
+  - Le total doit correspondre à la somme
+    des lignes de vente
+  - La date est générée automatiquement
+end note
+
+note right of User
+  - Le nom d'utilisateur doit être unique
+  - Le rôle peut être 'client' ou 'admin'
+  - Mot de passe par défaut: 'password'
+end note
+
+note right of Refund
+  - Un remboursement est toujours associé
+    à une vente existante
+  - Le total ne peut pas dépasser le total
+    de la vente originale
+  - Peut être partiel ou total
+end note
+
+@enduml

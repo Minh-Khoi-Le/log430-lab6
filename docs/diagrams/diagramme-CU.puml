@@ -1,0 +1,119 @@
+@startuml Diagramme CU
+title Diagramme CU - Gestion d'un magasin (Système Actuel)
+
+actor Client
+actor Gestionnaire as Admin
+
+' === Cas d'usage Client ===
+usecase "Consulter produits" as UC1
+usecase "Rechercher produits" as UC2
+usecase "Voir détails produit" as UC3
+usecase "Ajouter au panier" as UC4
+usecase "Consulter panier" as UC5
+usecase "Effectuer un achat" as UC6
+usecase "Voir historique achats" as UC7
+usecase "Demander un remboursement" as UC8
+usecase "S'authentifier" as UC9
+usecase "Sélectionner magasin" as UC10
+usecase "Voir reçu d'achat" as UC11
+
+' === Cas d'usage Gestionnaire ===
+usecase "Gérer les produits" as UC12
+usecase "Créer produit" as UC13
+usecase "Modifier produit" as UC14
+usecase "Supprimer produit" as UC15
+usecase "Gérer les magasins" as UC16
+usecase "Créer magasin" as UC17
+usecase "Modifier magasin" as UC18
+usecase "Voir détails magasin" as UC19
+usecase "Gérer inventaire" as UC20
+usecase "Consulter stocks" as UC21
+usecase "Ajuster stocks" as UC22
+usecase "Surveiller stock faible" as UC23
+usecase "Consulter dashboard" as UC24
+usecase "Générer rapports" as UC25
+usecase "Voir métriques performance" as UC26
+usecase "Traiter remboursements" as UC27
+usecase "Consulter historique ventes" as UC28
+usecase "Analyser performance magasins" as UC29
+usecase "Exporter rapport PDF" as UC30
+usecase "Gérer utilisateurs" as UC31
+
+' === Cas d'usage Système ===
+usecase "Réserver stock" as UC32
+usecase "Mettre à jour stock" as UC33
+usecase "Calculer totaux" as UC34
+usecase "Envoyer métriques" as UC35
+usecase "Gérer cache" as UC36
+
+' === Relations Client ===
+Client --> UC1
+Client --> UC2
+Client --> UC3
+Client --> UC4
+Client --> UC5
+Client --> UC6
+Client --> UC7
+Client --> UC8
+Client --> UC9
+Client --> UC10
+Client --> UC11
+
+' === Relations Gestionnaire ===
+Admin --> UC1
+Admin --> UC2
+Admin --> UC3
+Admin --> UC9
+Admin --> UC12
+Admin --> UC13
+Admin --> UC14
+Admin --> UC15
+Admin --> UC16
+Admin --> UC17
+Admin --> UC18
+Admin --> UC19
+Admin --> UC20
+Admin --> UC21
+Admin --> UC22
+Admin --> UC23
+Admin --> UC24
+Admin --> UC25
+Admin --> UC26
+Admin --> UC27
+Admin --> UC28
+Admin --> UC29
+Admin --> UC30
+Admin --> UC31
+
+' === Inclusions ===
+UC6 .> UC9 : include
+UC7 .> UC9 : include
+UC8 .> UC9 : include
+UC10 .> UC9 : include
+UC12 .> UC13 : include
+UC12 .> UC14 : include
+UC12 .> UC15 : include
+UC16 .> UC17 : include
+UC16 .> UC18 : include
+UC20 .> UC21 : include
+UC20 .> UC22 : include
+UC24 .> UC25 : include
+UC25 .> UC30 : include
+UC6 .> UC32 : include
+UC6 .> UC33 : include
+UC6 .> UC34 : include
+
+' === Extensions ===
+UC6 ..> UC11 : extend
+UC23 ..> UC22 : extend
+UC8 ..> UC33 : extend
+
+' === Dépendances système ===
+UC32 --> UC35 : trigger
+UC33 --> UC35 : trigger
+UC6 --> UC36 : invalidate
+UC13 --> UC36 : invalidate
+UC14 --> UC36 : invalidate
+UC15 --> UC36 : invalidate
+
+@enduml

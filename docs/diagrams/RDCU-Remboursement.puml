@@ -1,0 +1,84 @@
+@startuml RDCU Remboursement
+
+title RDCU - Remboursement produit (Système Actuel)
+
+actor Client
+participant "React Frontend" as Frontend
+participant "Kong Gateway" as Kong
+participant "Transaction Service" as TxnSvc
+participant "Catalog Service" as CatalogSvc
+participant "Redis Cache" as Cache
+participant "PostgreSQL DB" as DB
+
+Client -> Frontend : viewPurchaseHistory()
+Frontend -> Kong : GET /api/sales/user/{userId}\nAuthorization: Bearer token
+Kong -> TxnSvc : GET /api/sales/user/{userId}
+TxnSvc -> DB : SELECT sales WHERE userId=?
+DB --> TxnSvc : user sales data
+TxnSvc --> Kong : 200 OK\n{sales}
+Kong --> Frontend : 200 OK\n{sales}
+Frontend --> Client : displayPurchaseHistory()
+
+Client -> Frontend : requestRefund(saleId, reason)
+Frontend -> Kong : POST /api/refunds\n{saleId, reason, items}\nAuthorization: Bearer token
+
+Kong -> Kong : validateAPIKey()
+Kong -> Kong : routeToService(transaction-service)
+
+Kong -> TxnSvc : POST /api/refunds\n{saleId, reason, items}
+
+TxnSvc -> TxnSvc : validateRequest()
+TxnSvc -> DB : BEGIN TRANSACTION
+
+' Validate sale for refund
+TxnSvc -> DB : SELECT sale, saleLines WHERE saleId=? AND userId=?
+DB --> TxnSvc : sale with details
+
+alt Sale exists and belongs to user
+  TxnSvc -> TxnSvc : validateRefundEligibility()
+  TxnSvc -> TxnSvc : calculateRefundTotal()
+  
+  ' Create refund record
+  TxnSvc -> DB : INSERT INTO Refund\n(saleId, storeId, userId, total, reason, date)
+  DB --> TxnSvc : refundId
+  
+  ' Create refund lines
+  loop for each refunded item
+    TxnSvc -> DB : INSERT INTO RefundLine\n(refundId, productId, quantity, unitPrice)
+    DB --> TxnSvc : refundLineId
+  end
+  
+  ' Update sale status
+  TxnSvc -> DB : UPDATE Sale SET status = 'refunded' WHERE id=?
+  DB --> TxnSvc : UPDATE SUCCESS
+  
+  ' Restore stock via catalog service
+  TxnSvc -> CatalogSvc : POST /api/stock/adjust\n{storeId, productId, quantity, reason: 'REFUND'}
+  CatalogSvc -> DB : UPDATE Stock SET quantity = quantity + ?
+  DB --> CatalogSvc : UPDATE SUCCESS
+  CatalogSvc --> TxnSvc : {success: true}
+  
+  TxnSvc -> DB : COMMIT TRANSACTION
+  DB --> TxnSvc : COMMIT SUCCESS
+  
+  ' Invalidate caches
+  TxnSvc -> Cache : delete('GET:/api/refunds*')
+  TxnSvc -> Cache : delete('GET:/api/sales*')
+  TxnSvc -> Cache : delete('GET:/api/stock*')
+  
+  ' Record metrics
+  TxnSvc -> TxnSvc : recordMetrics('refund_created')
+  
+  TxnSvc --> Kong : 201 Created\n{refundId, total, date}
+  Kong --> Frontend : 201 Created\n{success: true, refund}
+  Frontend --> Client : "Remboursement traité avec succès"
+
+else Sale invalid or not owned by user
+  TxnSvc -> TxnSvc : logUnauthorizedRefund()
+  TxnSvc -> DB : ROLLBACK TRANSACTION
+  TxnSvc --> Kong : 400 Bad Request\n{error: "invalid_sale"}
+  Kong --> Frontend : 400 Bad Request\n{error: "Vente non trouvée"}
+  Frontend --> Client : "Erreur: Vente non trouvée ou non autorisée"
+end
+
+@enduml

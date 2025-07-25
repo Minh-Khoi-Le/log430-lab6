@@ -1,0 +1,76 @@
+@startuml RDCU Vente
+
+title RDCU - Vente produit (Système Actuel)
+
+actor Client
+participant "React Frontend" as Frontend
+participant "Kong Gateway" as Kong
+participant "User Service" as UserSvc
+participant "Transaction Service" as TxnSvc
+participant "Catalog Service" as CatalogSvc
+participant "Redis Cache" as Cache
+participant "PostgreSQL DB" as DB
+
+Client -> Frontend : addToCart(product)
+Frontend -> Frontend : updateCartState()
+Client -> Frontend : checkout()
+
+Frontend -> Kong : POST /api/sales\n{userId, storeId, items}\nAuthorization: Bearer token
+
+Kong -> Kong : validateAPIKey()
+Kong -> Kong : routeToService(transaction-service)
+
+Kong -> TxnSvc : POST /api/sales\n{userId, storeId, items}
+
+TxnSvc -> TxnSvc : validateRequest()
+TxnSvc -> DB : BEGIN TRANSACTION
+
+' Validate stock availability via catalog service
+TxnSvc -> CatalogSvc : POST /api/stock/reserve\n{storeId, productId, quantity}
+CatalogSvc -> DB : SELECT stock WHERE storeId=? AND productId=?
+DB --> CatalogSvc : stock data
+CatalogSvc -> CatalogSvc : validateStockAvailability()
+
+alt Stock suffisant
+  CatalogSvc -> DB : UPDATE Stock SET quantity = quantity - ?
+  DB --> CatalogSvc : UPDATE SUCCESS
+  CatalogSvc --> TxnSvc : {success: true}
+  
+  ' Create sale record
+  TxnSvc -> DB : INSERT INTO Sale\n(userId, storeId, total, date, status)
+  DB --> TxnSvc : saleId
+  
+  ' Create sale lines
+  loop for each item
+    TxnSvc -> DB : INSERT INTO SaleLine\n(saleId, productId, quantity, unitPrice)
+    DB --> TxnSvc : saleLineId
+  end
+  
+  TxnSvc -> DB : COMMIT TRANSACTION
+  DB --> TxnSvc : COMMIT SUCCESS
+  
+  ' Invalidate caches
+  TxnSvc -> Cache : delete('GET:/api/sales*')
+  TxnSvc -> Cache : delete('GET:/api/stock*')
+  
+  ' Record metrics
+  TxnSvc -> TxnSvc : recordMetrics('sale_created')
+  
+  TxnSvc --> Kong : 201 Created\n{saleId, total, date, lines}
+  Kong --> Frontend : 201 Created\n{success: true, sale}
+  
+  Frontend -> Frontend : clearCart()
+  Frontend -> Frontend : showReceiptModal()
+  Frontend --> Client : "Achat effectué avec succès"
+
+else Stock insuffisant
+  CatalogSvc -> CatalogSvc : logStockInsufficient()
+  CatalogSvc --> TxnSvc : {success: false, error: "insufficient_stock"}
+  
+  TxnSvc -> DB : ROLLBACK TRANSACTION
+  TxnSvc --> Kong : 400 Bad Request\n{error: "Stock insuffisant"}
+  Kong --> Frontend : 400 Bad Request\n{error: "Stock insuffisant"}
+  Frontend --> Client : "Erreur: Stock insuffisant"
+end
+
+@enduml

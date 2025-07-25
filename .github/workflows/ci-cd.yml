@@ -1,0 +1,96 @@
+name: CI/CD - Build & Docker
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: magasin_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v4
+
+    # ------- Build Backend Services -------
+    - name: Set up Node.js (backend)
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install all dependencies (including workspaces)
+      run: cd src && npm install
+
+    - name: Generate Prisma client & migrate
+      run: |
+        cd src
+        npx prisma generate
+        npx prisma migrate deploy
+      env:
+        DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/magasin_db"
+
+    - name: Build backend services
+      run: |
+        cd src/services/catalog-service && npm run build
+        cd ../user-service && npm run build
+        cd ../transaction-service && npm run build
+
+    - name: Run backend tests
+      run: |
+        cd src/services/catalog-service && npm test
+        cd ../user-service && npm test
+        cd ../transaction-service && npm test
+
+    # ------- Build Frontend -------
+    - name: Set up Node.js (frontend)
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install frontend dependencies
+      run: cd src/web-client && npm install
+
+    # - name: Run frontend linting
+    #   run: cd src/web-client && npm run lint
+
+    - name: Build frontend (Vite)
+      run: cd src/web-client && npm run build
+
+    # ------- Docker build & Test -------
+    - name: Build Docker images
+      run: cd src && docker compose build
+
+    - name: Test Docker images exist
+      run: |
+        # List all Docker images for debugging
+        echo "Available Docker images:"
+        docker images
+        # The build command above would have failed if there were issues
+        echo "Docker build test completed successfully"

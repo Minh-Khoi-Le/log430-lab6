@@ -1,0 +1,154 @@
+@startuml Diagramme de deploiement
+title Diagramme de deploiement — Architecture Docker & Kong Gateway
+
+node "Client Browser" {
+  artifact "React App" as ReactApp
+  artifact "CartContext"
+  artifact "UserContext"
+  artifact "API Client"
+  artifact "Material-UI Components"
+}
+
+cloud "Docker Compose Environment" {
+  node "Frontend Container" {
+    node "Nginx Container" {
+      artifact "Vite Build"
+      artifact "Static Assets"
+      artifact "React Bundle"
+    }
+  }
+  
+  node "Kong Gateway Container" {
+    artifact "API Gateway" as Kong
+    artifact "Kong Configuration"
+    artifact "Rate Limiting"
+    artifact "Authentication Plugin"
+    artifact "Routing Rules"
+  }
+  
+  node "Catalog Service Container" {
+    node "Node.js Runtime" {
+      artifact "Express Server"
+      artifact "Product Controller"
+      artifact "Store Controller"
+      artifact "Stock Controller"
+      artifact "Product Use Cases"
+      artifact "Store Use Cases"
+      artifact "Stock Use Cases"
+      artifact "Prisma Client"
+    }
+  }
+  
+  node "Transaction Service Container" {
+    node "Node.js Runtime" as TransactionNode {
+      artifact "Express Server" as TransactionExpress
+      artifact "Sale Controller"
+      artifact "Refund Controller"
+      artifact "Sale Use Cases"
+      artifact "Refund Use Cases"
+      artifact "Prisma Client" as TransactionPrisma
+    }
+  }
+  
+  node "User Service Container" {
+    node "Node.js Runtime" as UserNode {
+      artifact "Express Server" as UserExpress
+      artifact "User Controller"
+      artifact "Auth Controller"
+      artifact "User Service"
+      artifact "Auth Middleware"
+      artifact "Prisma Client" as UserPrisma
+    }
+  }
+  
+  node "Database Container" {
+    database "PostgreSQL" as DB {
+      artifact "Store Tables"
+      artifact "Product Tables"
+      artifact "Stock Tables"
+      artifact "User Tables"
+      artifact "Sale Tables"
+      artifact "Refund Tables"
+      artifact "Prisma Migrations"
+    }
+  }
+  
+  node "Cache Container" {
+    database "Redis" {
+      artifact "API Response Cache"
+      artifact "Session Data"
+      artifact "Product Cache"
+      artifact "Stock Cache"
+    }
+  }
+  
+  node "Monitoring Container" {
+    node "Prometheus Container" {
+      artifact "Metrics Collection"
+      artifact "Service Discovery"
+      artifact "Alerting Rules"
+    }
+    node "Grafana Container" {
+      artifact "Dashboards"
+      artifact "Visualization"
+      artifact "Golden Signals"
+    }
+  }
+
+  node "Database Migration Container" {
+    artifact "Prisma Migrate"
+    artifact "Database Seeder"
+  }
+}
+
+node "Load Testing Environment" {
+  artifact "K6 Tests"
+  artifact "Test Scenarios"
+  artifact "Performance Scripts"
+}
+
+' === Network Connections ===
+ReactApp --> Kong : HTTPS/REST API
+Kong --> "Express Server" : HTTP/8001
+Kong --> TransactionExpress : HTTP/8002
+Kong --> UserExpress : HTTP/8003
+
+"Express Server" --> "Product Controller"
+"Express Server" --> "Store Controller"
+"Express Server" --> "Stock Controller"
+
+TransactionExpress --> "Sale Controller"
+TransactionExpress --> "Refund Controller"
+
+UserExpress --> "User Controller"
+UserExpress --> "Auth Controller"
+
+"Product Controller" --> "Product Use Cases"
+"Store Controller" --> "Store Use Cases"
+"Stock Controller" --> "Stock Use Cases"
+
+"Sale Controller" --> "Sale Use Cases"
+"Refund Controller" --> "Refund Use Cases"
+
+"User Controller" --> "User Service"
+"Auth Controller" --> "Auth Middleware"
+
+"Prisma Client" --> DB
+TransactionPrisma --> DB
+UserPrisma --> DB
+
+"Express Server" --> "Redis" : caching
+TransactionExpress --> "Redis" : caching
+UserExpress --> "Redis" : caching
+
+"Express Server" --> "Metrics Collection" : /metrics
+TransactionExpress --> "Metrics Collection" : /metrics
+UserExpress --> "Metrics Collection" : /metrics
+Kong --> "Metrics Collection" : metrics
+
+"Metrics Collection" --> "Dashboards" : data visualization
+
+"K6 Tests" --> Kong : load testing
+"Database Migration Container" --> DB : schema setup
+
+@enduml

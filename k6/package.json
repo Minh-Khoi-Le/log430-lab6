@@ -1,0 +1,46 @@
+{
+  "name": "log430-lab6-k6-tests",
+  "version": "1.0.0",
+  "description": "k6 Load Testing Suite for LOG430 Lab 6 Retail Store Management System",
+  "scripts": {
+    "test": "k6 run --env BASE_URL=http://localhost:8000 --env API_KEY=frontend-app-key-12345 tests/comprehensive-test.js",
+    "test:smoke": "k6 run --env BASE_URL=http://localhost:8000 --env API_KEY=frontend-app-key-12345 --stage 1m:5 tests/auth-test.js",
+    "test:load": "k6 run --env BASE_URL=http://localhost:8000 --env API_KEY=frontend-app-key-12345 tests/comprehensive-test.js",
+    "test:stress": "k6 run --env BASE_URL=http://localhost:8000 --env API_KEY=frontend-app-key-12345 scenarios/e2e-scenario.js",
+    "test:spike": "k6 run --env BASE_URL=http://localhost:8000 --env API_KEY=frontend-app-key-12345 scenarios/spike-test.js",
+    "test:soak": "k6 run --env BASE_URL=http://localhost:8000 --env API_KEY=frontend-app-key-12345 --stage 2m:20 --stage 30m:20 --stage 2m:0 tests/comprehensive-test.js",
+    "test:auth": "k6 run --env BASE_URL=http://localhost:8000 --env API_KEY=frontend-app-key-12345 tests/auth-test.js",
+    "test:products": "k6 run --env BASE_URL=http://localhost:8000 --env API_KEY=frontend-app-key-12345 tests/product-test.js",
+    "test:stock": "k6 run --env BASE_URL=http://localhost:8000 --env API_KEY=frontend-app-key-12345 tests/stock-test.js",
+    "test:sales": "k6 run --env BASE_URL=http://localhost:8000 --env API_KEY=frontend-app-key-12345 tests/sales-test.js",
+    "test:e2e": "k6 run --env BASE_URL=http://localhost:8000 --env API_KEY=frontend-app-key-12345 scenarios/e2e-scenario.js",
+    "test:all": "npm run test:auth && npm run test:products && npm run test:stock && npm run test:sales && npm run test:e2e",
+    "quick-test": "scripts/quick-test.bat",
+    "run-tests": "scripts/run-tests.bat"
+  },
+  "keywords": [
+    "k6",
+    "load-testing",
+    "performance-testing",
+    "microservices",
+    "api-testing",
+    "stress-testing",
+    "log430",
+    "retail-system"
+  ],
+  "author": "Minh Khoi Le ",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-repo/log430-lab6.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-repo/log430-lab6/issues"
+  },
+  "homepage": "https://github.com/your-repo/log430-lab6#readme"
+}

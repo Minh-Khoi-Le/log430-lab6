@@ -1,0 +1,179 @@
+@startuml Architecture Système
+
+title Architecture Système - LOG430 Lab 5 Microservices
+
+!define AWSPUML https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v16.0/dist
+!includeurl AWSPUML/AWSCommon.puml
+
+' === Client Layer ===
+package "Client Layer" {
+  component [React Web Client] as WebClient
+  note right of WebClient
+    - React 19 + Vite 6
+    - Material-UI components
+    - PDF report generation
+    - Real-time cart management
+  end note
+}
+
+' === API Gateway Layer ===
+package "API Gateway Layer" {
+  component [Kong Gateway] as Kong
+  note right of Kong
+    - Declarative configuration
+    - API key authentication
+    - Rate limiting (300/min)
+    - CORS handling
+    - Prometheus metrics
+  end note
+}
+
+' === Microservices Layer ===
+package "Microservices Layer" {
+  
+  package "User Service" {
+    component [User Controller] as UserCtrl
+    component [Auth Controller] as AuthCtrl
+    component [User Domain] as UserDomain
+    component [User Repository] as UserRepo
+    note right of UserDomain
+      - JWT authentication
+      - Role-based access (admin/client)
+      - User profile management
+      - Session handling
+    end note
+  }
+  
+  package "Catalog Service" {
+    component [Product Controller] as ProductCtrl
+    component [Store Controller] as StoreCtrl
+    component [Stock Controller] as StockCtrl
+    component [Dashboard Controller] as DashCtrl
+    component [Catalog Domain] as CatalogDomain
+    component [Catalog Repository] as CatalogRepo
+    note right of CatalogDomain
+      - Product CRUD operations
+      - Multi-store inventory
+      - Stock level management
+      - Dashboard analytics
+    end note
+  }
+  
+  package "Transaction Service" {
+    component [Sale Controller] as SaleCtrl
+    component [Refund Controller] as RefundCtrl
+    component [Transaction Domain] as TransDomain
+    component [Transaction Repository] as TransRepo
+    note right of TransDomain
+      - Sales processing
+      - Refund handling
+      - Financial reporting
+      - Transaction history
+    end note
+  }
+}
+
+' === Shared Infrastructure ===
+package "Shared Infrastructure" {
+  
+  package "Database Layer" {
+    database "PostgreSQL 15" as DB
+    component [Prisma ORM] as Prisma
+    note right of DB
+      - Shared database across services
+      - ACID transactions
+      - Referential integrity
+      - Comprehensive schema
+    end note
+  }
+  
+  package "Caching Layer" {
+    database "Redis 7" as Cache
+    component [Cache Service] as CacheService
+    note right of Cache
+      - API response caching
+      - Session management
+      - TTL-based expiration
+      - Service-specific patterns
+    end note
+  }
+  
+  package "Monitoring Stack" {
+    component [Prometheus] as Prometheus
+    component [Grafana] as Grafana
+    component [Node Exporter] as NodeExp
+    component [PostgreSQL Exporter] as PGExp
+    component [Redis Exporter] as RedisExp
+    note right of Prometheus
+      - Four Golden Signals
+      - Custom metrics per service
+      - Alert management
+      - Time-series storage
+    end note
+  }
+}
+
+' === External Services ===
+package "Development Tools" {
+  component [k6 Load Testing] as K6
+  component [Docker Compose] as Docker
+  note right of K6
+    - Multiple test scenarios
+    - Performance validation
+    - Spike testing
+    - Multi-user scenarios
+  end note
+}
+
+' === Connections ===
+WebClient --> Kong : HTTPS/REST API\n(X-API-Key header)
+Kong --> UserCtrl : /api/auth/*\n/api/users/*
+Kong --> ProductCtrl : /api/products/*
+Kong --> StoreCtrl : /api/stores/*
+Kong --> StockCtrl : /api/stock/*
+Kong --> DashCtrl : /api/dashboard/*
+Kong --> SaleCtrl : /api/sales/*
+Kong --> RefundCtrl : /api/refunds/*
+
+UserCtrl --> UserDomain
+AuthCtrl --> UserDomain
+UserDomain --> UserRepo
+UserRepo --> Prisma
+
+ProductCtrl --> CatalogDomain
+StoreCtrl --> CatalogDomain
+StockCtrl --> CatalogDomain
+DashCtrl --> CatalogDomain
+CatalogDomain --> CatalogRepo
+CatalogRepo --> Prisma
+
+SaleCtrl --> TransDomain
+RefundCtrl --> TransDomain
+TransDomain --> TransRepo
+TransRepo --> Prisma
+
+Prisma --> DB
+
+UserRepo --> CacheService
+CatalogRepo --> CacheService
+TransRepo --> CacheService
+CacheService --> Cache
+
+Kong --> Prometheus : /metrics
+UserCtrl --> Prometheus : /metrics
+ProductCtrl --> Prometheus : /metrics
+SaleCtrl --> Prometheus : /metrics
+NodeExp --> Prometheus
+PGExp --> Prometheus
+RedisExp --> Prometheus
+
+Prometheus --> Grafana
+Grafana --> WebClient : Monitoring\nDashboards
+
+K6 --> Kong : Load Testing
+Docker ..> Kong : Container\nOrchestration
+Docker ..> DB : Container\nOrchestration
+Docker ..> Cache : Container\nOrchestration
+Docker ..> Prometheus : Container\nOrchestration
+
+@enduml
