@@ -186,3 +186,54 @@ model RefundLine {
 
   @@map("RefundLine")
 }
+
+// Saga Model
+// 
+// Represents a saga orchestration instance for managing distributed transactions.
+// Each saga tracks the state of a complex business workflow across multiple services.
+// 
+// Relationships:
+// - One-to-Many with SagaStepLog: A saga has multiple step execution logs
+model Saga {
+  id              Int             @id @default(autoincrement())
+  correlationId   String          @unique @map("correlationId")
+  state           String          @map("state")
+  currentStep     String?         @map("currentStep")
+  context         Json            @map("context")
+  createdAt       DateTime        @default(now()) @map("createdAt")
+  updatedAt       DateTime        @updatedAt @map("updatedAt")
+  completedAt     DateTime?       @map("completedAt")
+  errorMessage    String?         @map("errorMessage")
+  compensationData Json?          @map("compensationData")
+  stepLogs        SagaStepLog[]
+
+  @@index([correlationId])
+  @@index([state])
+  @@index([createdAt])
+  @@map("Saga")
+}
+
+// SagaStepLog Model
+// 
+// Represents the execution log of a single step within a saga workflow.
+// Tracks timing, success/failure, and step-specific data for monitoring and debugging.
+// 
+// Relationships:
+// - Many-to-One with Saga: Each step log belongs to one saga
+model SagaStepLog {
+  id            Int       @id @default(autoincrement())
+  saga          Saga      @relation(fields: [sagaId], references: [id])
+  sagaId        Int       @map("sagaId")
+  stepName      String    @map("stepName")
+  state         String    @map("state")
+  startedAt     DateTime  @default(now()) @map("startedAt")
+  completedAt   DateTime? @map("completedAt")
+  duration      Int?      @map("duration") // in milliseconds
+  success       Boolean?  @map("success")
+  errorMessage  String?   @map("errorMessage")
+  stepData      Json?     @map("stepData")
+
+  @@index([sagaId])
+  @@index([stepName])
+  @@map("SagaStepLog")
+}
