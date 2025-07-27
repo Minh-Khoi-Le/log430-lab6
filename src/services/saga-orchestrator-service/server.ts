@@ -9,6 +9,12 @@ import { createLogger } from '@shared/infrastructure/logging';
 import { register, metricsMiddleware, collectSystemMetrics } from '@shared/infrastructure/metrics';
 import { databaseManager } from '@shared/infrastructure/database/database-manager';
 
+// Import saga orchestrator components
+import { SagaController, HealthController } from './infrastructure/http';
+import { SagaOrchestratorUseCase } from './application/use-cases/saga-orchestrator.use-case';
+import { SharedSagaRepository } from './infrastructure/database/shared-saga.repository';
+import { createServiceClientFactoryFromEnv } from './infrastructure/services/service-client.factory';
+
 dotenv.config();
 
 const app = express();
@@ -51,39 +57,18 @@ const initializeServices = async () => {
 // Create cache service with proper service name
 const cacheService = new CacheService(redisClient, 'saga-orchestrator-service');
 
-// Health check endpoint
-app.get('/health', async (req, res) => {
-  try {
-    // Check database connection
-    await databaseManager.ensureConnection();
-    
-    // Check Redis connection (optional)
-    let redisStatus = 'disconnected';
-    try {
-      if (redisClient.isConnected) {
-        redisStatus = 'connected';
-      }
-    } catch (error) {
-      // Redis is optional, so we don't fail the health check
-    }
+// Initialize saga orchestrator components
+const sagaRepository = new SharedSagaRepository(databaseManager);
+const serviceClientFactory = createServiceClientFactoryFromEnv();
+const sagaOrchestratorUseCase = new SagaOrchestratorUseCase(sagaRepository, serviceClientFactory);
 
-    res.json({ 
-      status: 'healthy', 
-      service: 'saga-orchestrator-service',
-      database: 'connected',
-      redis: redisStatus,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    logger.error('Health check failed', error as Error);
-    res.status(503).json({ 
-      status: 'unhealthy', 
-      service: 'saga-orchestrator-service',
-      error: 'Database connection failed',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
+// Initialize controllers
+const sagaController = new SagaController(sagaOrchestratorUseCase);
+const healthController = new HealthController();
+
+// Health check endpoints
+app.get('/health', (req, res) => healthController.healthCheck(req, res));
+app.get('/health/detailed', (req, res) => healthController.detailedHealthCheck(req, res));
 
 // Metrics endpoint
 app.get('/metrics', async (req, res) => {
@@ -96,10 +81,12 @@ app.get('/metrics', async (req, res) => {
   }
 });
 
-// Placeholder for saga routes - will be implemented in later tasks
+// Saga orchestrator routes
 app.get('/api/sagas', (req, res) => {
   res.json({ message: 'Saga orchestrator service is running', version: '1.0.0' });
 });
+app.post('/api/sagas/sales', (req, res) => sagaController.createSale(req, res));
+app.get('/api/sagas/:correlationId', (req, res) => sagaController.getSagaStatus(req, res));
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
