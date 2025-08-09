@@ -6,7 +6,7 @@
 
 ## Résultats de l'Implémentation
 
-### ✅ Bénéfices Réalisés
+### Bénéfices Réalisés
 
 - **Performance Améliorée**: Réduction de 40% du temps de connexion à la base de données grâce au pooling partagé
 - **Maintenance Simplifiée**: Code d'accès aux données centralisé dans `src/shared/infrastructure/database/`
@@ -14,14 +14,14 @@
 - **Cohérence des Données**: Transactions ACID maintenues avec gestion centralisée
 - **Évolutivité**: Architecture prête pour la mise à l'échelle horizontale
 
-### 📊 Métriques de Performance
+### Métriques de Performance
 
 - **Connexions Optimisées**: Pool unique de 10 connexions vs 30 connexions précédemment (3x10)
 - **Temps de Réponse**: Amélioration moyenne de 25% sur les requêtes complexes
 - **Utilisation Mémoire**: Réduction de 60% de l'utilisation mémoire pour les connexions DB
 - **Validation Cross-Domain**: <50ms pour les validations inter-services
 
-### 🔧 Implémentation Technique Complète
+### Implémentation Technique Complète
 
 **Gestionnaire de Base de Données Centralisé**:
 
@@ -30,7 +30,7 @@
 export class DatabaseManager {
   private static instance: DatabaseManager;
   private prisma: PrismaClient;
-  
+
   async ensureConnection(): Promise<void> {
     // Pool de connexions optimisé
     // Health checks automatiques
@@ -43,7 +43,7 @@ export class DatabaseManager {
 
 ```typescript
 // catalog-service: SharedProductRepository, SharedStoreRepository, SharedStockRepository
-// transaction-service: SharedSaleRepository, SharedRefundRepository  
+// transaction-service: SharedSaleRepository, SharedRefundRepository
 // user-service: SharedUserRepository
 ```
 
@@ -216,7 +216,9 @@ src/services/{service}/infrastructure/database/
 interface IDatabaseManager {
   getClient(): PrismaClient;
   beginTransaction(): Promise<PrismaTransaction>;
-  executeInTransaction<T>(operation: (tx: PrismaTransaction) => Promise<T>): Promise<T>;
+  executeInTransaction<T>(
+    operation: (tx: PrismaTransaction) => Promise<T>
+  ): Promise<T>;
   disconnect(): Promise<void>;
   getConnectionStatus(): Promise<DatabaseHealthStatus>;
 }
@@ -249,7 +251,7 @@ interface ICrossDomainQueries {
   validateUserExists(userId: number): Promise<boolean>;
   validateProductExists(productId: number): Promise<boolean>;
   validateStoreExists(storeId: number): Promise<boolean>;
-  
+
   // Accès en lecture seule pour la logique métier
   getProductDetails(productId: number): Promise<ProductDetails | null>;
   getUserDetails(userId: number): Promise<UserDetails | null>;

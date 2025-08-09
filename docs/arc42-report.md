@@ -1,4 +1,4 @@
-# Rapport Arc42 Lab5 - Système de Gestion de Magasin
+# Rapport Arc42 Lab6 - Système de Gestion de Magasin
 
 ## Liens vers les dépôts Github
 
@@ -8,6 +8,7 @@
 - Lab3 : [https://github.com/Minh-Khoi-Le/log430-lab2/releases/tag/lab3](https://github.com/Minh-Khoi-Le/log430-lab2/releases/tag/lab3)
 - Lab4 : [https://github.com/Minh-Khoi-Le/log430-lab4.git](https://github.com/Minh-Khoi-Le/log430-lab4.git)
 - Lab5 : [https://github.com/Minh-Khoi-Le/log430-lab5.git](https://github.com/Minh-Khoi-Le/log430-lab5.git)
+- Lab6 : [https://github.com/Minh-Khoi-Le/log430-lab6.git](https://github.com/Minh-Khoi-Le/log430-lab6.git)
 
 ---
 
@@ -32,7 +33,7 @@
 
 ### 1.1 Aperçu des Exigences
 
-Le système de gestion de magasin de détail développé pour le LOG430 Lab 5 est une application complète basée sur une architecture microservices. Il fournit une solution complète pour la gestion des opérations de vente au détail incluant l'authentification des utilisateurs, le catalogue de produits, le suivi des stocks, les transactions de vente et les fonctionnalités administratives.
+Le système de gestion de magasin de détail développé pour le LOG430 Lab 6 est une application complète basée sur une architecture microservices. Il fournit une solution complète pour la gestion des opérations de vente au détail incluant l'authentification des utilisateurs, le catalogue de produits, le suivi des stocks, les transactions de vente distribuées avec pattern Saga, et les fonctionnalités administratives.
 
 ![Diagramme de Cas d'Usage](diagrams/png/Diagramme%20CU.png)
 
@@ -118,7 +119,7 @@ Le diagramme ci-dessus illustre l'architecture globale du système de gestion de
 
 - **Client Web** (React 19 + Material-UI) sur localhost:5173
 - **Kong Gateway** (API Gateway) sur localhost:8000 avec rate limiting
-- **Microservices** : User Service (:3001), Catalog Service (:3002), Transaction Service (:3003)
+- **Microservices** : User Service (:3001), Catalog Service (:3002), Transaction Service (:3003), Saga Orchestrator Service (:3004)
 - **Infrastructure** : PostgreSQL 15 (:5432), Redis 7 (:6379), Monitoring (Prometheus + Grafana)
 - **Tests & Validation** : k6 Load Testing, Unit Tests (Jest), Integration Tests
 
@@ -147,7 +148,7 @@ Le diagramme ci-dessus illustre l'architecture globale du système de gestion de
 
 L'architecture suit une approche **microservices moderne** avec infrastructure centralisée, intégrant les principes suivants :
 
-1. **Décomposition par Domaine Métier** : Chaque service gère un domaine spécifique (User, Catalog, Transaction)
+1. **Décomposition par Domaine Métier** : Chaque service gère un domaine spécifique (User, Catalog, Transaction, Saga Orchestration)
 2. **Infrastructure de Base de Données Centralisée** : PostgreSQL partagé avec frontières de domaine strictes et validation cross-domain
 3. **API Gateway Centralisé** : Kong pour la gestion des préoccupations transversales (sécurité, monitoring, rate limiting)
 4. **Surveillance Complète** : Observabilité avec Prometheus, Grafana et Four Golden Signals
@@ -158,11 +159,12 @@ L'architecture suit une approche **microservices moderne** avec infrastructure c
 
 | Pattern | Application | Bénéfices | Implémentation |
 |---------|-------------|-----------|----------------|
-| **Microservices** | Décomposition en 3 services indépendants | Évolutivité, maintenabilité, déploiement indépendant | User, Catalog, Transaction services avec domaines métier bien définis |
+| **Microservices** | Décomposition en 4 services indépendants | Évolutivité, maintenabilité, déploiement indépendant | User, Catalog, Transaction, Saga Orchestrator services avec domaines métier bien définis |
 | **API Gateway** | Kong pour le routage centralisé | Sécurité, surveillance, gestion du trafic | Rate limiting (300/min), API keys, métriques Prometheus |
 | **Domain-Driven Design** | Structure interne des services | Cohérence métier, séparation des responsabilités | Entities, Use Cases, Repositories par domaine |
 | **Clean Architecture** | Séparation des couches | Testabilité, flexibilité, indépendance des frameworks | Domain → Application → Infrastructure |
 | **CQRS Léger** | Séparation lecture/écriture | Performance, optimisation des requêtes | Repositories spécialisés avec cache pour les lectures |
+| **Saga Orchestration** | Gestion transactions distribuées | Cohérence finale, compensation automatique | Workflows de vente avec états validés et compensation en cas d'échec |
 | **Centralized Database** | Base de données partagée avec frontières | Performance optimisée, cohérence ACID | Connection pooling, validation cross-domain |
 | **Cache-Aside** | Stratégie de mise en cache | Réduction latence, amélioration throughput | Redis avec TTL et invalidation automatique |
 
@@ -283,6 +285,66 @@ L'architecture suit une approche **microservices moderne** avec infrastructure c
 
 - **Direct** : Entités Sale, SaleLine, Refund, RefundLine
 - **Cross-Domain** : Validation User, Product, Store via ICrossDomainQueries
+
+#### 5.1.4 Saga Orchestrator Service (Port 3004)
+
+**Responsabilités :**
+
+- Orchestration des workflows de vente distribuée multi-services
+- Gestion des états de saga avec machine à états validée
+- Exécution automatique des compensations en cas d'échec
+- Coordination des étapes : vérification stock → réservation → paiement → confirmation
+- Monitoring et observabilité des transactions distribuées
+- Gestion des timeouts et retry policies
+
+**API Endpoints :**
+
+- `POST /api/sagas/sales` - Démarrage d'un workflow de vente orchestrée
+- `GET /api/sagas/:correlationId` - Statut et historique d'un workflow saga
+- `GET /api/sagas` - Informations sur le service et santé
+- `GET /health` - Health check simple
+- `GET /health/detailed` - Health check détaillé avec dépendances
+- `GET /metrics` - Métriques Prometheus pour workflows saga
+
+**Workflow de Vente Orchestrée :**
+
+1. **Stock Verification Step** - Vérification de disponibilité via Catalog Service
+2. **Stock Reservation Step** - Réservation temporaire avec timeout (30s)
+3. **Payment Processing Step** - Traitement paiement via Transaction Service
+4. **Order Confirmation Step** - Création vente finale et confirmation
+
+**Gestion des États :**
+
+```typescript
+enum SagaState {
+  INITIATED,                    // Saga initiée
+  STOCK_VERIFYING,             // Vérification stock en cours
+  STOCK_VERIFIED,              // Stock vérifié et disponible
+  STOCK_RESERVING,             // Réservation stock en cours
+  STOCK_RESERVED,              // Stock réservé temporairement
+  PAYMENT_PROCESSING,          // Traitement paiement en cours
+  PAYMENT_PROCESSED,           // Paiement traité avec succès
+  ORDER_CONFIRMING,            // Confirmation commande en cours
+  SALE_CONFIRMED,              // Vente confirmée (état final succès)
+  COMPENSATING_STOCK,          // Compensation stock en cours
+  COMPENSATING_PAYMENT,        // Compensation paiement en cours
+  COMPENSATED,                 // Compensation terminée
+  FAILED                       // Échec final après compensation
+}
+```
+
+**Stratégie de Compensation :**
+
+- **Stock réservé mais paiement échoué** → Libération automatique du stock réservé
+- **Paiement traité mais confirmation échouée** → Remboursement ou crédit client
+- **Timeout de workflow** → Compensation complète selon l'étape atteinte
+- **Erreur service externe** → Retry automatique puis compensation si échec persistant
+
+**Accès aux Données :**
+
+- **Direct** : Entités Saga, SagaStepLog pour traçabilité complète
+- **Cross-Domain** : Communication avec Catalog Service et Transaction Service
+- **Cache** : États temporaires en Redis pour performance et résilience
 
 ### 5.2 Architecture de Base de Données Centralisée
 
@@ -424,6 +486,44 @@ model RefundLine {
   @@index([refundId])
   @@index([productId])
 }
+
+// Saga pour orchestration des transactions distribuées
+model Saga {
+  id              Int             @id @default(autoincrement())
+  correlationId   String          @unique
+  state           String          // État actuel de la saga
+  currentStep     String?         // Étape en cours d'exécution
+  context         Json            // Contexte de la saga (données métier)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  completedAt     DateTime?       // Date de fin (succès ou échec)
+  errorMessage    String?         // Message d'erreur si échec
+  compensationData Json?          // Données pour compensation
+  stepLogs        SagaStepLog[]   // Logs détaillés des étapes
+  
+  @@index([correlationId])
+  @@index([state])
+  @@index([createdAt])
+}
+
+// Logs détaillés des étapes de saga pour monitoring
+model SagaStepLog {
+  id            Int       @id @default(autoincrement())
+  saga          Saga      @relation(fields: [sagaId], references: [id])
+  sagaId        Int
+  stepName      String    // Nom de l'étape (StockVerification, Payment, etc.)
+  state         String    // État de l'étape (STARTED, COMPLETED, FAILED)
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime? // Date de fin d'exécution
+  duration      Int?      // Durée d'exécution en millisecondes
+  success       Boolean?  // Succès ou échec de l'étape
+  errorMessage  String?   // Message d'erreur détaillé
+  stepData      Json?     // Données spécifiques à l'étape
+  
+  @@index([sagaId])
+  @@index([stepName])
+  @@index([startedAt])
+}
 ```
 
 ### 5.3 Architecture Interne des Services
@@ -487,18 +587,35 @@ Le diagramme de séquence ci-dessus illustre le processus d'authentification uti
 4. Génération et cache du JWT dans Redis
 5. Retour de la réponse d'authentification avec le token
 
-### 6.2 Scénario : Achat de Produit
+### 6.2 Scénario : Achat de Produit (Workflow Saga Orchestrée)
 
 ![RDCU Vente](diagrams/png/RDCU%20Vente.png)
 
-Le processus de vente implique une coordination entre plusieurs services :
+Le processus de vente utilise désormais le pattern Saga Orchestration pour coordonner les opérations distribuées :
 
-1. Validation JWT par Kong Gateway
-2. Routage vers Transaction Service
-3. Vérification du stock via Catalog Service
-4. Création de la transaction
-5. Mise à jour de l'inventaire et invalidation du cache
-6. Confirmation de la vente au client
+**Workflow de Vente Orchestrée :**
+
+1. **Initiation** - Client web envoie requête de vente via Kong Gateway
+2. **Routage** - Kong route vers Saga Orchestrator Service (port 3004)
+3. **Création Saga** - Orchestrateur crée une saga avec correlationId unique
+4. **Étape 1: Stock Verification** - Vérification disponibilité via Catalog Service
+5. **Étape 2: Stock Reservation** - Réservation temporaire (timeout 30s)
+6. **Étape 3: Payment Processing** - Traitement paiement via Transaction Service
+7. **Étape 4: Order Confirmation** - Création vente finale et confirmation stock
+8. **Completion** - Saga terminée avec succès ou compensation automatique si échec
+
+**Gestion des Échecs :**
+
+- **Échec Stock** → Réponse immédiate au client
+- **Échec Réservation** → Libération automatique des quantités
+- **Échec Paiement** → Compensation stock + notification client
+- **Échec Confirmation** → Compensation paiement + libération stock
+
+**Observabilité :**
+
+- Chaque étape loggée dans SagaStepLog avec timestamps et métriques
+- Corrélation ID pour traçabilité end-to-end
+- Métriques Prometheus pour monitoring temps réel
 
 ### 6.3 Scénario : Génération de Rapport
 
@@ -531,6 +648,7 @@ Le diagramme de déploiement ci-dessus montre l'organisation des conteneurs Dock
 - User Service sur port 3001 (authentification et gestion utilisateurs)
 - Catalog Service sur port 3002 (produits et inventaire)  
 - Transaction Service sur port 3003 (ventes et remboursements)
+- Saga Orchestrator Service sur port 3004 (orchestration workflows distribuées)
 
 **Niveau Infrastructure :**
 
@@ -849,6 +967,38 @@ logger.info('User login attempt', {
 - Amélioration de la maintenabilité à long terme
 - Patterns d'accès aux données plus cohérents
 
+### 9.7 ADR-007 : Saga Orchestration Pattern
+
+**Statut** : ACCEPTÉ
+
+**Décision** : Implémentation du pattern Saga Orchestration pour la gestion des transactions distribuées avec un service dédié `saga-orchestrator-service`.
+
+**Contexte** :
+
+Le processus de vente nécessite des opérations coordonnées à travers plusieurs services (vérification stock, réservation, paiement, confirmation) avec besoin de cohérence transactionnelle et gestion des échecs partiels.
+
+**Justification** :
+
+- **Cohérence transactionnelle** : Garantie de cohérence finale avec compensation automatique
+- **Observabilité** : Traçabilité complète des workflows avec SagaStepLog
+- **Résilience** : Gestion gracieuse des pannes avec retry et compensation
+- **Performance** : Workflow asynchrone non-bloquant avec cache Redis
+- **Maintenabilité** : Pattern extensible pour nouveaux workflows
+
+**Alternatives rejetées** :
+
+- **Choreography Pattern** : Manque d'observabilité centralisée
+- **Two-Phase Commit (2PC)** : Blocage possible et point de défaillance unique
+- **Transactions Distribuées XA** : Complexité excessive pour le contexte
+
+**Conséquences** :
+
+- Nouveau service à maintenir (saga-orchestrator-service:3004)
+- Complexité accrue de la machine à états
+- Latence supplémentaire (~50-100ms) acceptable pour la cohérence
+- Eventual consistency nécessitant adaptation UI
+- Gains majeurs en fiabilité et observabilité
+
 ---
 
 ## 10. Exigences de Qualité
@@ -1056,5 +1206,5 @@ Les décisions architecturales prises (Kong Gateway, base de données partagée,
 Les risques identifiés et les dettes techniques fournissent une roadmap claire pour l'évolution future du système vers une architecture de production robuste.
 
 **Auteur** : Minh Khoi Le
-**Date** : 2025-07-16
-**Version** : 3.0
+**Date** : 2025-08-06
+**Version** : 4.0

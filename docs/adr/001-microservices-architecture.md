@@ -48,6 +48,12 @@ J'implémenterai une **architecture microservices** avec la décomposition de se
    - Historique des transactions
    - Rapports financiers
 
+4. **Service Saga Orchestrator** (`saga-orchestrator-service:3004`)
+   - Orchestration des workflows de vente distribuée
+   - Gestion des états de saga avec compensation automatique
+   - Coordination multi-services pour cohérence transactionnelle
+   - Observabilité des transactions distribuées
+
 ### Infrastructure de support
 
 - **Kong API Gateway** pour le routage centralisé, l'authentification et les préoccupations transversales
